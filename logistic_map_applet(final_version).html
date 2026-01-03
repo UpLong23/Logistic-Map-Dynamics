@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="author" content="Panos Makris">
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+</head>
+<body>
+
+
+
+
+<style>  
+input[type=number]::-webkit-inner-spin-button{ 
+    opacity: 1;
+}, 
+input[type=number]::-webkit-outer-spin-button { 
+    opacity: 1;
+}
+
+</style>
+
+
+
+<!-- Spinbox, sliders and toggle -->
+<div>
+    <label for="precision-spinbox"> Set precision: </label>
+    <input type="number" id="precision-spinbox" min="2" max="14" step="1" value="2" oninput="handlePrecisionChange()" onkeydown="return false" opacity=1>
+</div>
+
+<div>
+    <label for="a-slider">Parameter value a:</label>
+    <input type="range" id="a-slider" min="0.0" max="4.0" step="0.01" value="3.74" oninput="handleSliderChange()">
+    <input type="text" id="a-value" value="3.74" oninput="handleInputChange()" onkeypress="handleKeyPress(event, 'a')">
+</div>
+
+<div>
+    <label for="init-slider">Initial value x<sub>0</sub>:</label>
+    <input type="range" id="init-slider" min="0.0" max="1.0" step="0.01" value="0.4" oninput="handleSliderChange()">
+    <input type="text" id="init-value" value="0.4" oninput="handleInputChange()" onkeypress="handleKeyPress(event, 'init')">
+</div>
+
+<div>
+    <label for="iter-slider">Number iterations:</label>
+    <input type="range" id="iter-slider" min="1" max="1000" step="1" value="100" oninput="handleSliderChange()">
+    <input type="text" id="iter-value" value="100" oninput="handleInputChange()" onkeypress="handleKeyPress(event, 'iter')">
+</div>
+
+<div>
+    <label for="transient-toggle">Toggle orbit:</label>
+    <input type="checkbox" id="transient-toggle" checked="true" onclick="handleSliderChange()">
+    <label for="attractor-toggle">Toggle attracting orbit:</label>
+    <input type="checkbox" id="attractor-toggle" checked="true" onclick="handleSliderChange()">
+</div>
+
+<!-- Plots -->
+<div id="plot-container" style="display: flex; flex-wrap: wrap;">
+    <div id="orbit-plot"></div>
+    <div id="cobweb-plot"></div>
+</div>
+
+<script>
+    // Function to calculate the logistic map
+    function logistic_map(x, a) {
+        return a * x * (1 - x);
+    }
+
+    // Function to generate the orbit data
+    function generateOrbitData(numIterations, a, initialValue) {
+        const orbit = [initialValue];
+        for (let i = 1; i <= numIterations+1; i++) {
+            orbit.push(logistic_map(orbit[i - 1], a));
+        }
+        return orbit;
+    }
+
+    // Function to generate cobweb plot data
+    function generateCobwebData(numIterations, a, initialValue, transient) {
+        const cobweb = [[initialValue, 0]];
+        for (let i = 1; i < 2*numIterations+1; i=i+2) {
+            const xPrev = cobweb[i - 1][0];
+            const xNext = logistic_map(xPrev, a);
+            cobweb.push([xPrev, xNext], [xNext, xNext]);
+        }
+        return transient ? cobweb : [0]
+    }
+    
+    function generateAttrData(a, initialValue, attractor) {
+        const cobweb = [[initialValue, 0]];
+        for (let i = 1; i < 20000; i=i+2) {
+            const xPrev = cobweb[i - 1][0];
+            const xNext = logistic_map(xPrev, a);
+            cobweb.push([xPrev, xNext], [xNext, xNext]);
+        }
+        return attractor ? cobweb.slice(-Math.floor(0.30*20000)) : [0];
+    }
+
+    // Function to update the plots
+    function updatePlots(a, initialValue, numIterations, transient, attractor) {
+        const orbitData = generateOrbitData(numIterations, a, initialValue);
+        const cobwebData = generateCobwebData(numIterations, a, initialValue, transient);
+        const attrData = generateAttrData(a, initialValue, attractor);
+        
+        // Plot orbit
+        const orbitPlot = {
+            x: Array.from({ length: numIterations+1 }, (_, i) => i),
+            y: orbitData,
+            type: 'scatter',
+            mode: 'lines+markers',
+            marker: { size: 5, color: 'blue'},
+            line: {dash: 'dot', width: 1, color: 'blue'}
+        };
+
+        // Plot cobweb
+        const cobwebPlot = {
+            x: cobwebData.map(point => point[0]),
+            y: cobwebData.map(point => point[1]),
+            type: 'scatter',
+            mode: 'lines',
+            line: { color: 'blue', width: 1.5 }
+        };
+        
+        // Plot attractor
+        const attrPlot ={
+          x: attrData.map(point => point[0]),
+          y: attrData.map(point => point[1]),
+          type: 'scatter',
+          mode: 'lines',
+          line: { color:'#006400', width: 3 }
+        };
+        
+        // Plot logistic map
+        const xValues = [];
+        const yValues = [];
+        for (let x = 0; x <= 1; x += 0.001) {
+            xValues.push(x);
+            yValues.push(eval(logistic_map(x,a)));
+        }
+
+        const lmPlot = {
+            x: xValues,
+            y: yValues,
+            line: { color:'black', width: 2 }
+        };
+
+        
+        // Plot bisector
+        const bisector = {
+            x: [0,1],
+            y: x=> x,
+            mode: 'lines',
+            name: 'dash',
+            line: {
+                dash: 'dash',
+                width: 1,
+                color: 'black'
+            }
+
+        };
+
+        // Create layout for orbit
+        const orbitLayout = {
+            title: 'Orbit Plot',
+            xaxis: {showgrid: false,title: 'Iteration', range: [0, numIterations],type: 'linear'},
+            yaxis: { 
+                title: 'x' ,
+                range: [0,1],
+                type: 'linear'
+            },
+            showlegend: false,
+            autosize: false,
+            width: 800,
+            height: 500,
+            margin: {l: 50,r: 50,b: 100,t: 100,pad: 4}
+        };
+
+
+        // Layout for the Cobweb plot
+        const cobwebLayout = {
+            title: 'Cobweb Plot',
+            xaxis: {showgrid: false,title: 'x',range: [0, 1], type: 'linear'},
+            yaxis: {showgrid: false,title: 'Logistic Map',range: [0, 1], type: 'linear'},
+            showlegend: false,
+            autosize: false,
+            width: 500,
+            height: 500,
+            margin: {l: 50,r: 50,b: 100,t: 100,pad: 4}
+        };
+
+        // Create layout for logistic map plot
+        const lmLayout = {
+            title: 'Logistic Map Plot',
+            xaxis: { title: 'x' },
+            yaxis: { title: 'Logistic Map' },
+            xaxis: {title: 'x',range: [0, 1],type: 'linear'},
+            yaxis: {title: 'Logistic Map',autorange: true,range: [0, 1],type: 'linear'},
+            showlegend: false
+        };
+
+        const bisectorLayout ={
+            xaxis: {title: 'x',range: [0, 1],type: 'linear'},
+            yaxis: {title: 'Bisector',autorange: true,range: [0, 1],type: 'linear'},
+            showlegend: false
+        };
+
+        // Update plots
+        Plotly.newPlot('orbit-plot', [orbitPlot], orbitLayout);
+        Plotly.newPlot('cobweb-plot', [cobwebPlot, attrPlot, lmPlot, bisector], cobwebLayout);
+
+        // Update slider values
+        document.getElementById('a-value').value = a.toFixed(precision);
+        document.getElementById('init-value').value = initialValue.toFixed(precision);
+        document.getElementById('iter-value').value = numIterations;
+    }
+
+    // Initial parameters
+    let numIterations = 100;
+    let a = 3.74;
+    let initialValue = 0.4;
+    let transient = true;
+    let attractor = true;
+    let precision = 2;
+
+    // Initial plot
+    updatePlots(a, initialValue, numIterations, transient, attractor);
+
+    // Function to handle slider change
+    function handleSliderChange() {
+        a = document.getElementById('a-slider').valueAsNumber;
+        initialValue = document.getElementById('init-slider').valueAsNumber;
+        numIterations = document.getElementById('iter-slider').valueAsNumber;
+        transient = document.getElementById('transient-toggle').checked;
+        attractor = document.getElementById('attractor-toggle').checked;
+
+        updatePlots(a, initialValue, numIterations, transient, attractor);
+    }
+
+    // Function to handle text input change
+    function handleInputChange() {
+        a = parseFloat(document.getElementById('a-value').value);
+        initialValue = parseFloat(document.getElementById('init-value').value);
+        numIterations = parseInt(document.getElementById('iter-value').value);
+        transient = document.getElementById('transient-toggle').checked;
+        attractor = document.getElementById('attractor-toggle').checked;
+    }
+
+    // Function to handle key press
+    function handleKeyPress(event, slider) {
+        if (event.key === 'Enter') {  
+            updatePlots(a, initialValue, numIterations, transient, attractor);
+            document.getElementById(`${slider}-slider`).value = a;
+        }
+    }
+
+    // Function to handle text input change
+    // Function to handle key press
+    function handleKeyPress(event, slider) {
+        if (event.key === 'Enter') {
+            a = parseFloat(document.getElementById('a-value').value);
+            initialValue = parseFloat(document.getElementById('init-value').value);
+            numIterations = parseInt(document.getElementById('iter-value').value);
+            transient = document.getElementById('transient-toggle').checked;
+            attractor = document.getElementById('attractor-toggle').checked;
+
+            // Update slider values
+            document.getElementById('a-slider').value = a;
+            document.getElementById('init-slider').value = initialValue;
+            document.getElementById('iter-slider').value = numIterations;
+
+            // Update plots
+            updatePlots(a, initialValue, numIterations, transient, attractor);
+        }
+    }
+
+
+        // Function to handle precision change
+
+    function handlePrecisionChange() {
+        precision = parseInt(document.getElementById('precision-spinbox').value);
+
+        // Update slider values and step values
+        document.getElementById('a-value').value = a.toFixed(precision);
+        document.getElementById('init-value').value = initialValue.toFixed(precision);
+
+        console.log(10**-precision)
+
+        console.log(Math.pow(10,-(precision)))
+
+        document.getElementById("a-value").step = Math.pow(10,-(precision));
+        document.getElementById("a-slider").step = Math.pow(10,-(precision));
+        document.getElementById("init-value").step = Math.pow(10,-(precision));
+        document.getElementById("init-slider").step = Math.pow(10,-(precision));
+
+
+        // Update plots
+        updatePlots(a, initialValue, numIterations, transient, attractor);
+    }
+
+</script>
+
+</body>
+</html>
