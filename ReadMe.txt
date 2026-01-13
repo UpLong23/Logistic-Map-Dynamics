@@ -6,3 +6,5 @@
 
 4) For any questions, bug reports or thoughts for improvements, do not hesitate to contact me at panos-makris@outlook.com
 
+Access the applet in https://uplong23.github.io/Logistic-Map-Dynamics/
+
